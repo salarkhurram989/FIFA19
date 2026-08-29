@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>FIFA19 — Football Simulation Prototype</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="loading">LOADING MATCH…</div>
+  <div id="hud">
+    <div class="score"><span id="home">HOME</span> <b id="score">0 — 0</b> <span id="away">AWAY</span><small id="clock">00:00</small></div>
+    <div id="status">MOVE • SHIFT SPRINT • SPACE SHOOT • E PASS</div>
+    <div id="power"><i></i></div>
+    <div id="timed">TIMED FINISH</div>
+  </div>
+  <div id="help">WASD / ARROWS Move · Shift Sprint · E Pass · Space Shoot · Q Switch · R Reset Ball · C Camera</div>
+  <canvas id="game"></canvas>
+  <script type="module" src="game.js"></script>
+</body>
+</html>
