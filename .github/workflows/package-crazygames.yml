@@ -1,0 +1,27 @@
+name: Package CrazyGames Upload
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Create upload ZIP
+        run: |
+          mkdir -p package
+          cp index.html game.js style.css package/
+          test -f package/index.html
+          cd package
+          zip -r ../FIFA19-CrazyGames.zip .
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FIFA19-CrazyGames
+          path: FIFA19-CrazyGames.zip
+          if-no-files-found: error
