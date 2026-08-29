@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FIFA19 CrazyGames Package</title>
+<style>
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0b0f14;color:#fff;font:16px system-ui;text-align:center}main{max-width:620px;padding:32px}button{border:0;border-radius:10px;padding:14px 22px;font-weight:700;font-size:16px;cursor:pointer}#status{margin:18px 0;color:#b9c4d0}code{background:#151c24;padding:2px 6px;border-radius:5px}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+<main>
+<h1>⚽ FIFA19 — CrazyGames Upload</h1>
+<p>This creates a clean ZIP with <code>index.html</code> at the ZIP root.</p>
+<button id="download">Download FIFA19-CrazyGames.zip</button>
+<div id="status">Ready.</div>
+</main>
+<script>
+const files=['index.html','game.js','style.css'];
+const base='https://raw.githubusercontent.com/salarkhurram989/FIFA19/main/';
+const status=document.getElementById('status');
+async function makeZip(){
+  const zip=new JSZip();
+  for(const file of files){
+    status.textContent='Downloading '+file+'…';
+    const r=await fetch(base+file,{cache:'no-store'});
+    if(!r.ok) throw new Error(file+' failed: '+r.status);
+    zip.file(file,await r.text());
+  }
+  status.textContent='Creating ZIP…';
+  const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='FIFA19-CrazyGames.zip';
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),30000);
+  status.textContent='Done — the ZIP contains index.html at its root.';
+}
+document.getElementById('download').addEventListener('click',async()=>{try{await makeZip()}catch(e){status.textContent='Package failed: '+e.message}});
+</script>
+</body>
+</html>
