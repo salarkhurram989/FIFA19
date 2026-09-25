@@ -7,6 +7,13 @@
 <style>
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#06100a;font-family:Arial,sans-serif;color:#fff}body{touch-action:none}canvas{display:block;width:100%;height:100%}
 #hud{position:fixed;inset:0;z-index:5;pointer-events:none;text-shadow:0 2px 4px #000}.score{position:absolute;top:14px;left:50%;transform:translateX(-50%);min-width:310px;padding:7px 18px;background:#070b0dcc;border:1px solid #ffffff30;border-radius:4px;text-align:center}.score b{font-size:23px;margin:0 15px}.score small{display:block;color:#ddd;margin-top:2px}.home{color:#ef3140}.away{color:#e9eef6}.team{font-weight:800}#status{position:absolute;top:15px;left:15px;padding:8px 11px;background:#0009;border-radius:4px;font-size:12px}.help{position:absolute;bottom:15px;left:50%;transform:translateX(-50%);background:#0009;padding:7px 12px;border-radius:4px;font-size:11px;white-space:nowrap}.bar{position:absolute;bottom:40px;left:50%;transform:translateX(-50%);width:240px;height:8px;background:#000b;border:1px solid #fff4;border-radius:8px;overflow:hidden}.bar i{display:block;height:100%;width:0;background:#fff}.timed{position:absolute;top:91px;left:50%;transform:translateX(-50%) scale(.8);font-size:20px;font-weight:900;opacity:0;transition:.1s}.timed.show{opacity:1;transform:translateX(-50%) scale(1)}#cameraLabel{position:absolute;right:15px;top:15px;font-size:10px;opacity:.8}#touch{position:fixed;right:14px;bottom:45px;z-index:10;display:grid;grid-template-columns:repeat(2,65px);gap:7px;pointer-events:auto}.touchBtn{height:46px;border:1px solid #fff4;border-radius:9px;background:#05080dcc;color:#fff;font-weight:800;touch-action:none}.touchBtn.wide{grid-column:span 2}@media(min-width:701px){#touch{opacity:.35}}@media(max-width:700px){.help{display:none}#status{display:none}.score{top:6px}.bar{bottom:9px}}
+#proHUD{position:absolute;right:15px;top:38px;display:flex;flex-direction:column;gap:7px;align-items:flex-end;pointer-events:auto;font-size:9px;letter-spacing:1px}
+.hudTop{display:flex;gap:8px;align-items:center;padding:6px 9px;border:1px solid #ffffff24;background:#05080dcc;border-radius:7px;backdrop-filter:blur(8px)}
+.liveDot{width:7px;height:7px;border-radius:50%;background:#ff3048;box-shadow:0 0 10px #ff3048;animation:livePulse 1.1s infinite}
+@keyframes livePulse{50%{opacity:.35;transform:scale(.75)}}
+.hudBtns{display:flex;gap:5px}.hudBtns button{border:1px solid #ffffff22;background:#05080dcc;color:#fff;border-radius:6px;padding:6px 8px;font-size:8px;letter-spacing:.7px;cursor:pointer}
+.hudBtns button:hover{background:#ffffff18}
+@media(max-width:700px){#proHUD{top:38px;right:8px}.hudBtns button{padding:5px 6px}.hudTop{padding:5px 7px}}
 </style>
 </head>
 <body>
@@ -14,6 +21,16 @@
  <div class="score"><span class="team home">HOME</span><b id="score">0 — 0</b><span class="team away">AWAY</span><small id="clock">00:00</small></div>
  <div id="status">READY • WASD / ARROWS</div><div id="timed" class="timed">TIMED FINISH</div><div class="bar"><i id="powerFill"></i></div>
  <div class="help">WASD / ARROWS Move · SHIFT Sprint · E Pass · SPACE Shoot · Q Switch · R Reset · C Camera</div><div id="cameraLabel">TELE-BROADCAST</div>
+ <div id="proHUD" aria-label="Match controls">
+   <div class="hudTop">
+     <span class="liveDot"></span><span>LIVE MATCH</span>
+     <span id="fps">60 FPS</span>
+   </div>
+   <div class="hudBtns">
+     <button id="fsBtn">FULLSCREEN</button>
+     <button id="qualityBtn">QUALITY: HIGH</button>
+   </div>
+ </div>
 </div>
 <div id="touch">
  <button class="touchBtn" data-key="w">▲</button><button class="touchBtn" data-key="shift">SPRINT</button>
@@ -167,5 +184,12 @@ document.querySelectorAll('.touchBtn').forEach(b=>{const key=b.dataset.key,actio
 function frame(now){const dt=Math.min(.033,Math.max(.001,(now-last)/1000));last=now;matchSeconds+=dt;controlledUpdate(dt);updateDefenseAI(dt);separatePlayers();ballPlayerCollision();ballPhysics(dt);goalCheck();updateCamera(dt);const sec=Math.floor(matchSeconds);clockEl.textContent=String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0');renderer.render(scene,camera);requestAnimationFrame(frame)}
 requestAnimationFrame(frame);
 </script>
-</body>
+<script>
+(()=>{const fps=document.getElementById('fps'),fs=document.getElementById('fsBtn'),q=document.getElementById('qualityBtn');
+let frames=0,last=performance.now(),high=true;
+function tick(t){frames++;if(t-last>=1000){fps.textContent=frames+' FPS';frames=0;last=t}requestAnimationFrame(tick)}requestAnimationFrame(tick);
+fs.onclick=async()=>{try{if(!document.fullscreenElement)await document.documentElement.requestFullscreen();else await document.exitFullscreen()}catch(e){}};
+q.onclick=()=>{high=!high;q.textContent='QUALITY: '+(high?'HIGH':'PERFORMANCE');document.querySelectorAll('canvas').forEach(x=>x.style.imageRendering=high?'auto':'auto');};
+})();
+</script></body>
 </html>
