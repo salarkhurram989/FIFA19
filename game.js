@@ -278,7 +278,7 @@ function makePlayer(team, x, z, num) {
     stamina: 100, base: new THREE.Vector3(x, 0, z),
     role: num === 1 ? 'GK' : 'OUT', sweat: 0,
     animTime: Math.random() * 10, walkPhase: Math.random() * Math.PI * 2,
-    radius: PLAYER_RADIUS, facing: 0
+    radius: PLAYER_RADIUS, facing: 0, tackleCooldown: 0, stamina: 100
   };
 
   const kitMat = makeKitMaterial(team);
@@ -397,6 +397,9 @@ canvas.addEventListener('contextmenu', e => e.preventDefault());
 
 let cameraMode = 0;
 let score = [0, 0];
+let paused = true;
+let matchFinished = false;
+const matchLimit = () => (window.__fifaSettings && window.__fifaSettings.matchLength) || 300;
 let matchTime = 0;
 let shootCharge = 0;
 let shooting = false;
@@ -471,31 +474,29 @@ function kick(power, curve = 0, loft = 0.12, direction = null) {
   return true;
 }
 function tackle() {
-  if (!controlled) return false;
+  if (!controlled || (controlled.userData.tackleCooldown || 0) > 0) return false;
+  controlled.userData.tackleCooldown = 0.75;
   let target = null, best = Infinity;
+  const forward = new THREE.Vector3(0,0,-1).applyQuaternion(controlled.quaternion);
+  forward.y = 0; forward.normalize();
   for (const p of players) {
     if (p.userData.team === controlled.userData.team) continue;
-    const d = p.position.distanceTo(controlled.position);
-    if (d < best) { best = d; target = p; }
+    const delta = p.position.clone().sub(controlled.position); delta.y = 0;
+    const d = delta.length();
+    if (d < best && d < 2.15) { delta.normalize(); if (forward.dot(delta) > -0.35) { best=d; target=p; } }
   }
-  if (!target || best > 2.05) {
-    setStatus('TACKLE MISS');
-    return false;
-  }
-  const toOpponent = target.position.clone().sub(controlled.position);
-  toOpponent.y = 0;
-  if (toOpponent.lengthSq() < 0.001) toOpponent.set(1,0,0);
+  if (!target) { setStatus('TACKLE MISS'); return false; }
+  const toOpponent = target.position.clone().sub(controlled.position); toOpponent.y=0;
+  if (toOpponent.lengthSq()<0.001) toOpponent.set(1,0,0);
   toOpponent.normalize();
-  const ballNearOpponent = ball.position.distanceTo(target.position) < 1.45;
+  const ballNearOpponent = ball.position.distanceTo(target.position) < 1.55;
+  const fromBehind = forward.dot(toOpponent) < -0.15;
   if (ballNearOpponent) {
-    ballState.v.copy(toOpponent).multiplyScalar(10.5);
-    ballState.v.y = 1.2;
-    ball.position.y = BALL_RADIUS + 0.08;
-    setStatus('CLEAN TACKLE');
-  } else {
-    target.userData.vel.addScaledVector(toOpponent, 3.5);
-    setStatus('SHOULDER CHALLENGE');
-  }
+    if (!fromBehind || Math.random() > 0.35) {
+      ballState.v.copy(toOpponent).multiplyScalar(8.5); ballState.v.y=1.0; ballState.owner=null;
+      ball.position.y=BALL_RADIUS+0.05; setStatus('CLEAN TACKLE');
+    } else { target.userData.vel.addScaledVector(toOpponent,2.2); setStatus('LATE TACKLE'); }
+  } else { target.userData.vel.addScaledVector(toOpponent,3.2); setStatus('SHOULDER CHALLENGE'); }
   return true;
 }
 function pass() {
@@ -528,7 +529,11 @@ function updateControlled(dt) {
   const d = inputDir();
   const moving = d.lengthSq() > 0;
   const sprint = !!keys.shift && moving;
-  const maxSpeed = sprint ? 9.3 : 6.2;
+  controlled.userData.tackleCooldown = Math.max(0, (controlled.userData.tackleCooldown || 0) - dt);
+  if (sprint) controlled.userData.stamina = Math.max(0, controlled.userData.stamina - dt * 16);
+  else controlled.userData.stamina = Math.min(100, controlled.userData.stamina + dt * 9);
+  const canSprint = sprint && controlled.userData.stamina > 1;
+  const maxSpeed = canSprint ? 9.3 : 6.2;
   const target = d.clone().multiplyScalar(maxSpeed);
   const accel = 1 - Math.exp(-(sprint ? 7.5 : 5.0) * dt);
   controlled.userData.vel.lerp(target, accel * 0.90);
@@ -545,8 +550,8 @@ function updateControlled(dt) {
   if (dist <= 2.3 && pressed.e) pass();
   if (keys[' ']) { shooting = true; shootCharge = Math.min(1, shootCharge + dt * 1.25); }
   else if (shooting) shoot();
-  const power = document.querySelector('#power i');
-  if (power) power.style.width = `${shootCharge * 100}%`;
+  const power = document.querySelector('#power i') || document.getElementById('powerFill');
+  if (power) power.style.width = (shootCharge * 100) + '%';
   if (dist < 1.35 && ballState.v.length() < 7 && !keys[' '] && !keys['f'] && !shooting) {
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(controlled.quaternion);
     const desired = controlled.position.clone().addScaledVector(forward, 0.95);
@@ -706,7 +711,10 @@ function updateCamera(dt) {
   }
 }
 function updateClock(dt) {
+  if (paused || matchFinished) return;
   matchTime += dt;
+  const limit = matchLimit();
+  if (matchTime >= limit) { matchTime = limit; matchFinished = true; paused = true; setStatus('FULL TIME'); document.getElementById('pauseMenu')?.classList.add('open'); }
   const minutes = Math.floor(matchTime / 60), seconds = Math.floor(matchTime % 60);
   const clock = document.getElementById('clock');
   if (clock) clock.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
@@ -719,18 +727,37 @@ function resize() {
 }
 window.addEventListener('resize', resize);
 
+const matchMenu = document.getElementById('matchMenu');
+const pauseMenu = document.getElementById('pauseMenu');
+document.getElementById('playBtn')?.addEventListener('click', () => { paused=false; if(matchMenu) matchMenu.style.display='none'; });
+document.getElementById('resumeBtn')?.addEventListener('click', () => { if(!matchFinished){paused=false;pauseMenu?.classList.remove('open');} });
+document.getElementById('restartBtn')?.addEventListener('click', () => location.reload());
+window.addEventListener('keydown', e => {
+  if(e.key==='Escape' && matchMenu?.style.display==='none'){paused=!paused;pauseMenu?.classList.toggle('open',paused);if(paused)clearInput();}
+});
+document.getElementById('touch')?.insertAdjacentHTML('beforeend','<button class="touchBtn" data-action="tackle">TACKLE F</button>');
+document.querySelectorAll('.touchBtn').forEach(btn=>{
+  const key=btn.dataset.key, action=btn.dataset.action;
+  const down=e=>{e.preventDefault();if(key)keys[key]=true;if(action==='pass')pressed.e=true;if(action==='switch')pressed.q=true;if(action==='camera')pressed.c=true;if(action==='shoot')keys[' ']=true;if(action==='tackle')pressed.f=true;};
+  const up=e=>{e.preventDefault();if(key)keys[key]=false;if(action==='shoot')keys[' ']=false;};
+  btn.addEventListener('pointerdown',down,{passive:false});btn.addEventListener('pointerup',up,{passive:false});btn.addEventListener('pointercancel',up,{passive:false});
+});
 function animate(now) {
   const dt = Math.min(0.033, Math.max(0.001, (now - last) / 1000));
   last = now;
   goalPause = Math.max(0, goalPause - dt);
-  updateControlled(dt);
-  updateAI(dt);
-  resolvePlayerCollisions();
-  playerBallCollision();
-  ballPhysics(dt);
-  goalCheck();
-  updateCharacterVisuals(dt);
-  pitchWear();
+  if (!paused) {
+    updateControlled(dt);
+    updateAI(dt);
+  }
+  if (!paused) {
+    resolvePlayerCollisions();
+    playerBallCollision();
+    ballPhysics(dt);
+    goalCheck();
+    updateCharacterVisuals(dt);
+    pitchWear();
+  }
   updateCamera(dt);
   updateClock(dt);
   consumePressed();
