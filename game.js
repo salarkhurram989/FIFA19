@@ -50,7 +50,7 @@ const HALF_L = FIELD.l / 2;
 const HALF_W = FIELD.w / 2;
 const GOAL_DEPTH = 3.0;
 const PLAYER_RADIUS = 0.42;
-const BALL_RADIUS = 0.11;
+const BALL_RADIUS = 0.15;
 const clamp = THREE.MathUtils.clamp;
 const lerp = THREE.MathUtils.lerp;
 const damp = (current, target, lambda, dt) => lerp(current, target, 1 - Math.exp(-lambda * dt));
@@ -344,8 +344,20 @@ awayPos.forEach((p, i) => makePlayer(1, p[0], p[1], i + 1));
 controlled = players[9];
 controlled.userData.marker.visible = true;
 
-const ballMat = new THREE.MeshPhysicalMaterial({ color: 0xf5f5f5, roughness: 0.32, clearcoat: 0.35, clearcoatRoughness: 0.22 });
+const ballMat = new THREE.MeshPhysicalMaterial({
+  color: 0xffffff,
+  roughness: 0.28,
+  clearcoat: 0.55,
+  clearcoatRoughness: 0.14,
+  emissive: 0x202020,
+  emissiveIntensity: 0.35
+});
 const ball = new THREE.Mesh(new THREE.SphereGeometry(BALL_RADIUS, 32, 20), ballMat);
+const ballGlow = new THREE.Mesh(
+  new THREE.SphereGeometry(BALL_RADIUS * 1.45, 20, 14),
+  new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.13, depthWrite: false })
+);
+ball.add(ballGlow);
 ball.castShadow = true;
 ball.position.set(0, BALL_RADIUS, 0);
 scene.add(ball);
@@ -353,13 +365,14 @@ const ballState = { v: new THREE.Vector3(), w: new THREE.Vector3(), mass: 0.43, 
 
 const keys = Object.create(null);
 const pressed = Object.create(null);
-const controlKeys = new Set(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright','shift','e',' ','q','r','c']);
+const controlKeys = new Set(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright','shift','e','f',' ','q','r','c']);
 function handleKeyDown(e) {
   const k = e.key.toLowerCase();
   if (controlKeys.has(k)) e.preventDefault();
   if (!keys[k]) pressed[k] = true;
   keys[k] = true;
   if (k === 'q') switchPlayer();
+  if (k === 'f') tackle();
   if (k === 'r') resetBall();
   if (k === 'c') { cameraMode = (cameraMode + 1) % 3; setStatus(['TELE-BROADCAST','OVERHEAD','FOLLOW CAMERA'][cameraMode]); }
 }
@@ -443,8 +456,36 @@ function kick(power, curve = 0, loft = 0.12, direction = null) {
   ballState.w.set(0, curve * power, 0);
   ball.position.y = Math.max(BALL_RADIUS, ball.position.y);
 }
+function tackle() {
+  if (!controlled) return false;
+  let target = null, best = Infinity;
+  for (const p of players) {
+    if (p.userData.team === controlled.userData.team) continue;
+    const d = p.position.distanceTo(controlled.position);
+    if (d < best) { best = d; target = p; }
+  }
+  if (!target || best > 2.05) {
+    setStatus('TACKLE MISS');
+    return false;
+  }
+  const toOpponent = target.position.clone().sub(controlled.position);
+  toOpponent.y = 0;
+  if (toOpponent.lengthSq() < 0.001) toOpponent.set(1,0,0);
+  toOpponent.normalize();
+  const ballNearOpponent = ball.position.distanceTo(target.position) < 1.45;
+  if (ballNearOpponent) {
+    ballState.v.copy(toOpponent).multiplyScalar(10.5);
+    ballState.v.y = 1.2;
+    ball.position.y = BALL_RADIUS + 0.08;
+    setStatus('CLEAN TACKLE');
+  } else {
+    target.userData.vel.addScaledVector(toOpponent, 3.5);
+    setStatus('SHOULDER CHALLENGE');
+  }
+  return true;
+}
 function pass() {
-  if (controlled.position.distanceTo(ball.position) > 1.5) return false;
+  if (controlled.position.distanceTo(ball.position) > 1.7) return false;
   const mate = nearestTeammate();
   let direction = mate ? mate.position.clone().sub(ball.position) : new THREE.Vector3(0, 0, -1).applyQuaternion(controlled.quaternion);
   direction.y = 0;
@@ -492,12 +533,13 @@ function updateControlled(dt) {
   else if (shooting) shoot();
   const power = document.querySelector('#power i');
   if (power) power.style.width = `${shootCharge * 100}%`;
-  if (dist < 1.25 && ballState.v.length() < 7 && !keys[' ']) {
-    const desired = controlled.position.clone();
+  if (dist < 1.35 && ballState.v.length() < 7 && !keys[' '] && !keys['f']) {
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(controlled.quaternion);
-    desired.addScaledVector(forward, 0.85); desired.y = BALL_RADIUS;
+    const desired = controlled.position.clone().addScaledVector(forward, 0.95);
+    desired.y = BALL_RADIUS + 0.06;
     const delta = desired.sub(ball.position); delta.y = 0;
-    ballState.v.addScaledVector(delta, Math.min(10, delta.length() * 12) * dt);
+    ballState.v.addScaledVector(delta, Math.min(8, delta.length() * 10) * dt);
+    ball.position.y = BALL_RADIUS + 0.06;
   }
 }
 function resolvePlayerCollisions() {
@@ -536,8 +578,12 @@ function updateAI(dt) {
     desired.x += clamp(ball.position.x * 0.14, -8, 8);
     desired.z += clamp(ball.position.z * 0.20, -8, 8);
     const distBall = p.position.distanceTo(ball.position);
-    if (team === 1) { desired.x += ball.position.x * 0.16; if (distBall < 13) desired.lerp(ball.position, 0.20); }
-    else if (distBall < 10) desired.lerp(ball.position, 0.16);
+    if (team === 1) {
+      desired.x += ball.position.x * 0.10;
+      if (distBall < 8) desired.lerp(ball.position, 0.07);
+    } else if (distBall < 8) {
+      desired.lerp(ball.position, 0.08);
+    }
     if (p.userData.role === 'GK') { desired.x = team === 0 ? -50 : 50; desired.z = clamp(ball.position.z * 0.35, -11, 11); }
     const delta = desired.sub(p.position); delta.y = 0;
     const max = p.userData.role === 'GK' ? 5.0 : 6.1;
@@ -549,10 +595,11 @@ function updateAI(dt) {
     } else p.userData.vel.multiplyScalar(Math.exp(-8 * dt));
     p.position.x = clamp(p.position.x, -HALF_L + 0.8, HALF_L - 0.8);
     p.position.z = clamp(p.position.z, -HALF_W + 0.8, HALF_W - 0.8);
-    if (distBall < 1.25 && ballState.v.length() < 2.5) {
+    if (distBall < 1.15 && ballState.v.length() < 1.8) {
       const direction = team === 0 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(-1, 0, 0);
-      ballState.v.lerp(direction.multiplyScalar(8), 0.4);
-      ballState.w.y = team === 0 ? 1.0 : -1.0;
+      ballState.v.lerp(direction.multiplyScalar(5.5), 0.18);
+      ballState.w.y = team === 0 ? 0.7 : -0.7;
+      ball.position.addScaledVector(direction, 0.025);
     }
   }
 }
@@ -677,5 +724,6 @@ function animate(now) {
   requestAnimationFrame(animate);
 }
 
+ballGlow.scale.setScalar(1.0);
 setTimeout(() => document.getElementById('loading')?.remove(), 700);
 requestAnimationFrame(animate);
