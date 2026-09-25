@@ -365,9 +365,11 @@ const ballState = { v: new THREE.Vector3(), w: new THREE.Vector3(), mass: 0.43, 
 
 const keys = Object.create(null);
 const pressed = Object.create(null);
-const controlKeys = new Set(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright','shift','e','f',' ','q','r','c']);
+const controlKeys = new Set(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright','shift','e','f',' ','q','r','c','escape']);
 function handleKeyDown(e) {
   const k = e.key.toLowerCase();
+  const keyName = e.key;
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(keyName)) keys[keyName] = true;
   if (controlKeys.has(k)) e.preventDefault();
   if (!keys[k]) pressed[k] = true;
   keys[k] = true;
@@ -378,6 +380,8 @@ function handleKeyDown(e) {
 }
 function handleKeyUp(e) {
   const k = e.key.toLowerCase();
+  const keyName = e.key;
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(keyName)) keys[keyName] = false;
   if (controlKeys.has(k)) e.preventDefault();
   keys[k] = false;
 }
@@ -428,8 +432,8 @@ function switchPlayer() {
   setStatus(`PLAYER ${controlled.userData.num} SELECTED`);
 }
 function inputDir() {
-  const x = (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0);
-  const z = (keys.s || keys.arrowdown ? 1 : 0) - (keys.w || keys.arrowup ? 1 : 0);
+  const x = (keys.d || keys.arrowright || keys.ArrowRight ? 1 : 0) - (keys.a || keys.arrowleft || keys.ArrowLeft ? 1 : 0);
+  const z = (keys.s || keys.arrowdown || keys.ArrowDown ? 1 : 0) - (keys.w || keys.arrowup || keys.ArrowUp ? 1 : 0);
   const v = new THREE.Vector3(x, 0, z);
   if (v.lengthSq() > 0) v.normalize();
   return v;
