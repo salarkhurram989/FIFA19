@@ -448,17 +448,27 @@ function nearestTeammate() {
   return best;
 }
 function kick(power, curve = 0, loft = 0.12, direction = null) {
+  if (!controlled) return false;
+
+  const dist = controlled.position.distanceTo(ball.position);
+  if (dist > 2.3) return false;
+
   const dir = direction ? direction.clone() : new THREE.Vector3(0, 0, -1).applyQuaternion(controlled.quaternion);
   dir.y = 0;
   if (dir.lengthSq() < 0.01) dir.set(1, 0, 0);
   dir.normalize();
-  const toBall = ball.position.clone().sub(controlled.position);
-  toBall.y = 0;
-  if (toBall.lengthSq() > 0.01) dir.lerp(toBall.normalize(), 0.18).normalize();
+
+  // Put the ball just in front of the player before applying the kick.
+  // This prevents the player-collision code from cancelling the shot.
+  const contactPoint = controlled.position.clone().addScaledVector(dir, 0.78);
+  ball.position.x = contactPoint.x;
+  ball.position.z = contactPoint.z;
+  ball.position.y = BALL_RADIUS + 0.03;
+
   ballState.v.copy(dir).multiplyScalar(power);
-  ballState.v.y = Math.max(0.1, power * loft);
+  ballState.v.y = Math.max(0.35, power * loft);
   ballState.w.set(0, curve * power, 0);
-  ball.position.y = Math.max(BALL_RADIUS, ball.position.y);
+  return true;
 }
 function tackle() {
   if (!controlled) return false;
@@ -489,7 +499,7 @@ function tackle() {
   return true;
 }
 function pass() {
-  if (controlled.position.distanceTo(ball.position) > 1.7) return false;
+  if (controlled.position.distanceTo(ball.position) > 2.3) return false;
   const mate = nearestTeammate();
   let direction = mate ? mate.position.clone().sub(ball.position) : new THREE.Vector3(0, 0, -1).applyQuaternion(controlled.quaternion);
   direction.y = 0;
@@ -500,7 +510,7 @@ function pass() {
   return true;
 }
 function shoot() {
-  if (controlled.position.distanceTo(ball.position) > 1.5) return false;
+  if (controlled.position.distanceTo(ball.position) > 2.3) return false;
   const t = shootCharge;
   const timing = Math.abs(t - 0.72);
   const quality = timing < 0.09 ? 'GREEN' : timing < 0.22 ? 'YELLOW' : 'RED';
@@ -532,12 +542,12 @@ function updateControlled(dt) {
     controlled.userData.facing = desiredAngle;
   }
   const dist = controlled.position.distanceTo(ball.position);
-  if (dist <= 1.5 && pressed.e) pass();
+  if (dist <= 2.3 && pressed.e) pass();
   if (keys[' ']) { shooting = true; shootCharge = Math.min(1, shootCharge + dt * 1.25); }
   else if (shooting) shoot();
   const power = document.querySelector('#power i');
   if (power) power.style.width = `${shootCharge * 100}%`;
-  if (dist < 1.35 && ballState.v.length() < 7 && !keys[' '] && !keys['f']) {
+  if (dist < 1.35 && ballState.v.length() < 7 && !keys[' '] && !keys['f'] && !shooting) {
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(controlled.quaternion);
     const desired = controlled.position.clone().addScaledVector(forward, 0.95);
     desired.y = BALL_RADIUS + 0.06;
