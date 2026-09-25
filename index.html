@@ -14,6 +14,14 @@
 .hudBtns{display:flex;gap:5px}.hudBtns button{border:1px solid #ffffff22;background:#05080dcc;color:#fff;border-radius:6px;padding:6px 8px;font-size:8px;letter-spacing:.7px;cursor:pointer}
 .hudBtns button:hover{background:#ffffff18}
 @media(max-width:700px){#proHUD{top:38px;right:8px}.hudBtns button{padding:5px 6px}.hudTop{padding:5px 7px}}
+#matchMenu,#pauseMenu{position:fixed;inset:0;z-index:30;display:grid;place-items:center;background:radial-gradient(circle at 50% 45%,#163c25cc,#020603ee 70%);backdrop-filter:blur(7px)}
+.menuCard,.pauseCard{width:min(430px,calc(100vw - 32px));padding:32px;border:1px solid #ffffff22;border-radius:18px;background:#07100de8;box-shadow:0 25px 80px #000b;text-align:center}
+.brand{font-size:58px;font-weight:1000;letter-spacing:-4px;font-style:italic}.brand span{color:#ff3048}.menuSub{font-size:9px;letter-spacing:4px;opacity:.55;margin:4px 0 30px}
+.menuCard button,.pauseCard button{width:100%;padding:13px;margin:6px 0;border:1px solid #ffffff22;border-radius:9px;background:#ffffff0d;color:white;font-weight:900;letter-spacing:1.5px;cursor:pointer}.menuCard .primary{background:#c91f31;border-color:#ff5160;box-shadow:0 8px 25px #c91f3140}
+.menuRow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.menuRow label{text-align:left;font-size:8px;letter-spacing:1px;opacity:.7}.menuRow select{display:block;width:100%;margin-top:5px;padding:9px;background:#101914;color:#fff;border:1px solid #ffffff1f;border-radius:7px}
+.tips{margin-top:18px;font-size:9px;opacity:.4}.pauseCard{width:300px}.pauseTitle{font-size:22px;font-weight:900;margin-bottom:14px}
+#pauseMenu{display:none;background:#020603aa}#pauseMenu.open{display:grid}
+@media(max-width:700px){.brand{font-size:48px}.menuCard{padding:25px}}
 </style>
 </head>
 <body>
@@ -38,7 +46,19 @@
  <button class="touchBtn" data-key="s">▼</button><button class="touchBtn" data-action="pass">PASS E</button>
  <button class="touchBtn wide" data-action="shoot">SHOOT SPACE</button><button class="touchBtn" data-action="switch">SWITCH Q</button><button class="touchBtn" data-action="camera">CAM C</button>
 </div>
-<canvas id="game"></canvas>
+<div id="matchMenu">
+  <div class="menuCard">
+    <div class="brand">FIFA <span>19</span></div>
+    <div class="menuSub">WEB FOOTBALL EXPERIENCE</div>
+    <button id="playBtn" class="primary">KICK OFF</button>
+    <div class="menuRow">
+      <label>DIFFICULTY<select id="difficulty"><option>AMATEUR</option><option selected>PROFESSIONAL</option><option>WORLD CLASS</option></select></label>
+      <label>MATCH<select id="matchLength"><option value="180">3 MIN</option><option value="300" selected>5 MIN</option><option value="600">10 MIN</option></select></label>
+    </div>
+    <div class="tips">WASD / ARROWS Move · SHIFT Sprint · E Pass · SPACE Shoot</div>
+  </div>
+</div>
+<div id="pauseMenu"><div class="pauseCard"><div class="pauseTitle">MATCH PAUSED</div><button id="resumeBtn">RESUME</button><button id="restartBtn">RESTART</button></div></div><canvas id="game"></canvas>
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 
@@ -190,6 +210,16 @@ let frames=0,last=performance.now(),high=true;
 function tick(t){frames++;if(t-last>=1000){fps.textContent=frames+' FPS';frames=0;last=t}requestAnimationFrame(tick)}requestAnimationFrame(tick);
 fs.onclick=async()=>{try{if(!document.fullscreenElement)await document.documentElement.requestFullscreen();else await document.exitFullscreen()}catch(e){}};
 q.onclick=()=>{high=!high;q.textContent='QUALITY: '+(high?'HIGH':'PERFORMANCE');document.querySelectorAll('canvas').forEach(x=>x.style.imageRendering=high?'auto':'auto');};
+})();
+</script><script>
+(()=>{const menu=document.getElementById('matchMenu'),pause=document.getElementById('pauseMenu');
+const play=document.getElementById('playBtn'),resume=document.getElementById('resumeBtn'),restart=document.getElementById('restartBtn');
+let paused=false;
+play.onclick=()=>{menu.style.display='none';document.body.focus()};
+resume.onclick=()=>{paused=false;pause.classList.remove('open')};
+restart.onclick=()=>{location.reload()};
+window.addEventListener('keydown',e=>{if(e.key==='Escape'&&menu.style.display==='none'){paused=!paused;pause.classList.toggle('open',paused)}});
+window.__fifaSettings={get difficulty(){return document.getElementById('difficulty').value},get matchLength(){return +document.getElementById('matchLength').value}};
 })();
 </script></body>
 </html>
