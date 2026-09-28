@@ -361,7 +361,7 @@ ball.add(ballGlow);
 ball.castShadow = true;
 ball.position.set(0, BALL_RADIUS, 0);
 scene.add(ball);
-const ballState = { v: new THREE.Vector3(), w: new THREE.Vector3(), mass: 0.43, Cd: 0.25, angularDrag: 0.05, restitution: 0.78, magnus: 0.00035, wear: 0, kickGrace: 0, lastTouchTeam: -1, lastTouch: 0 };
+const ballState = { v: new THREE.Vector3(), w: new THREE.Vector3(), mass: 0.43, Cd: 0.25, angularDrag: 0.05, restitution: 0.78, magnus: 0.00035, wear: 0, kickGrace: 0, lastTouchTeam: -1, lastTouch: 0, owner: null };
 
 const keys = Object.create(null);
 const pressed = Object.create(null);
@@ -416,6 +416,7 @@ function resetBall() {
   ball.position.set(0, BALL_RADIUS, 0);
   ballState.v.set(0, 0, 0);
   ballState.w.set(0, 0, 0);
+  ballState.owner = null;
   shooting = false;
   shootCharge = 0;
 }
@@ -455,6 +456,7 @@ function kick(power, curve = 0, loft = 0.12, direction = null) {
 
   const dist = controlled.position.distanceTo(ball.position);
   if (dist > 2.3) return false;
+  ballState.owner = null;
 
   const dir = direction ? direction.clone() : new THREE.Vector3(0, 0, -1).applyQuaternion(controlled.quaternion);
   dir.y = 0;
@@ -561,13 +563,18 @@ function updateControlled(dt) {
   if (power) power.style.width = (shootCharge * 100) + '%';
   if (dist < 1.35 && ballState.v.length() < 7 && !keys[' '] && !keys['f'] && !shooting) {
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(controlled.quaternion);
-    const controlDistance = sprint ? 1.18 : 0.88;
+    forward.y = 0;
+    if (forward.lengthSq() < 0.01) forward.set(0, 0, -1);
+    forward.normalize();
+    const controlDistance = sprint ? 1.12 : 0.84;
     const desired = controlled.position.clone().addScaledVector(forward, controlDistance);
-    desired.y = BALL_RADIUS + 0.06;
-    const delta = desired.sub(ball.position); delta.y = 0;
-    ballState.v.addScaledVector(delta, Math.min(8, delta.length() * 10) * dt);
-    ball.position.y = BALL_RADIUS + 0.06;
-    ballState.owner=controlled; ballState.lastTouchTeam=controlled.userData.team; ballState.lastTouch=performance.now();
+    desired.y = BALL_RADIUS + 0.055;
+    ballState.owner = controlled;
+    ballState.lastTouchTeam = controlled.userData.team;
+    ballState.lastTouch = performance.now();
+    ball.position.lerp(desired, 1 - Math.exp(-18 * dt));
+    ballState.v.copy(controlled.userData.vel);
+    ballState.v.y = 0;
   }
 }
 function resolvePlayerCollisions() {
@@ -652,6 +659,22 @@ function goalkeeperReaction() {
 }
 function ballPhysics(dt) {
   ballState.kickGrace=Math.max(0,ballState.kickGrace-dt);
+
+  if (ballState.owner) {
+    const owner = ballState.owner;
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(owner.quaternion);
+    forward.y = 0;
+    if (forward.lengthSq() < 0.01) forward.set(0, 0, -1);
+    forward.normalize();
+    const sprinting = owner === controlled && !!keys.shift && inputDir().lengthSq() > 0;
+    const foot = owner.position.clone().addScaledVector(forward, sprinting ? 1.12 : 0.84);
+    foot.y = BALL_RADIUS + 0.055;
+    ball.position.lerp(foot, 1 - Math.exp(-22 * dt));
+    ballState.v.copy(owner.userData.vel);
+    ballState.v.y = 0;
+    return;
+  }
+
   const v = ballState.v, speed = v.length(), rho = 0.9, area = Math.PI * BALL_RADIUS * BALL_RADIUS;
   if (speed > 0.001) {
     const dragForce = 0.5 * rho * ballState.Cd * area * speed * speed;
