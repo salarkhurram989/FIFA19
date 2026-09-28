@@ -561,7 +561,7 @@ function updateControlled(dt) {
   else if (shooting) shoot();
   const power = document.querySelector('#power i') || document.getElementById('powerFill');
   if (power) power.style.width = (shootCharge * 100) + '%';
-  if (dist < 1.35 && ballState.v.length() < 7 && !keys[' '] && !keys['f'] && !shooting) {
+  if (dist < 1.65 && !keys[' '] && !keys['f'] && !shooting) {
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(controlled.quaternion);
     forward.y = 0;
     if (forward.lengthSq() < 0.01) forward.set(0, 0, -1);
@@ -572,7 +572,7 @@ function updateControlled(dt) {
     ballState.owner = controlled;
     ballState.lastTouchTeam = controlled.userData.team;
     ballState.lastTouch = performance.now();
-    ball.position.lerp(desired, 1 - Math.exp(-18 * dt));
+    ball.position.copy(desired);
     ballState.v.copy(controlled.userData.vel);
     ballState.v.y = 0;
   }
@@ -593,6 +593,14 @@ function resolvePlayerCollisions() {
   }
 }
 function playerBallCollision() {
+  // A controlled player owns the ball during dribbling. Do not let
+  // secondary player-collision impulses steal it before the next frame.
+  if (ballState.owner) {
+    const owner = ballState.owner;
+    const delta = ball.position.clone().sub(owner.position); delta.y = 0;
+    if (delta.length() > 1.7) ballState.owner = null;
+    else return;
+  }
   for (const p of players) {
     const delta = ball.position.clone().sub(p.position); delta.y = 0;
     const d = delta.length(), minD = PLAYER_RADIUS + BALL_RADIUS + 0.02;
@@ -636,7 +644,7 @@ function updateAI(dt) {
     if(d.length()>.35){d.normalize().multiplyScalar(max);u.vel.lerp(d,1-Math.exp(-5.5*dt));p.position.addScaledVector(u.vel,dt);p.rotation.y=damp(p.rotation.y,Math.atan2(u.vel.x,u.vel.z),10,dt);}
     else u.vel.multiplyScalar(Math.exp(-8*dt));
     p.position.x=clamp(p.position.x,-HALF_L+.8,HALF_L-.8); p.position.z=clamp(p.position.z,-HALF_W+.8,HALF_W-.8);
-    if(team===1&&!isGK&&db<1.25&&ballState.v.length()<4){
+    if(!ballState.owner && team===1&&!isGK&&db<1.25&&ballState.v.length()<4){
       const push=ball.position.clone().sub(p.position); push.y=0;
       if(push.lengthSq()>.01){push.normalize();ballState.v.lerp(push.multiplyScalar(5.8*level),.35);ballState.owner=null;ballState.lastTouchTeam=1;ballState.lastTouch=performance.now();}
     }
