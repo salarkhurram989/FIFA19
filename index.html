@@ -65,7 +65,7 @@
 let frames=0,last=performance.now(),high=true;
 function tick(t){frames++;if(t-last>=1000){fps.textContent=frames+' FPS';frames=0;last=t}requestAnimationFrame(tick)}requestAnimationFrame(tick);
 fs.onclick=async()=>{try{if(!document.fullscreenElement)await document.documentElement.requestFullscreen();else await document.exitFullscreen()}catch(e){}};
-q.onclick=()=>{high=!high;q.textContent='QUALITY: '+(high?'HIGH':'PERFORMANCE');document.querySelectorAll('canvas').forEach(x=>x.style.imageRendering=high?'auto':'auto');};
+q.onclick=()=>{high=!high;q.textContent='QUALITY: '+(high?'HIGH':'PERFORMANCE');const r=window.__fifaRenderer;if(r){r.setPixelRatio(Math.min(window.devicePixelRatio||1,high?1.8:1));r.setSize(innerWidth,innerHeight);r.shadowMap.enabled=high;r.shadowMap.needsUpdate=true;}document.getElementById('cameraLabel').textContent=high?'TELE-BROADCAST · HIGH QUALITY':'TELE-BROADCAST · PERFORMANCE';};
 })();
 </script><script>
 (()=>{const menu=document.getElementById('matchMenu'),pause=document.getElementById('pauseMenu');
